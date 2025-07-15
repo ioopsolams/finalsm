@@ -182,6 +182,7 @@ export class CustomerService {
   static async addPointsTransaction(
     restaurantId: string,
     customerId: string,
+    branchId?: string,
     amountSpent?: number,
     description?: string
   ): Promise<void> {
@@ -207,6 +208,7 @@ export class CustomerService {
     const { error } = await supabase.rpc('process_point_transaction', {
       p_restaurant_id: restaurantId,
       p_customer_id: customerId,
+      p_branch_id: branchId || null,
       p_type: 'purchase',
       p_points: points,
       p_amount_spent: amountSpent,

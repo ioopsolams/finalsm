@@ -212,6 +212,7 @@ const StaffUI: React.FC = () => {
       await CustomerService.addPointsTransaction(
         restaurant.id,
         foundCustomer.id,
+        selectedBranch.id,
         amountSpent,
         `${description} (${selectedBranch.name})`
       );
