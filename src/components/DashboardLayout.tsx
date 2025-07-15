@@ -24,7 +24,6 @@ import {
   User,
   Utensils,
   Building
-  Building
 } from 'lucide-react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useAuth } from '../contexts/AuthContext';
