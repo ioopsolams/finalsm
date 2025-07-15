@@ -24,6 +24,7 @@ import {
   User,
   Utensils,
   Building
+  Building
 } from 'lucide-react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,8 +56,8 @@ const DashboardLayout: React.FC = () => {
     { name: 'Rewards', href: '/dashboard/rewards', icon: Gift },
     { name: 'Menu Items', href: '/dashboard/menu-items', icon: Utensils },
     { name: 'Loyalty Config', href: '/dashboard/loyalty-config', icon: SettingsIcon },
+    { name: 'Branches', href: '/dashboard/branches', icon: Building },
     { name: 'QR Codes', href: '/dashboard/qr', icon: QrCode },
-    { name: 'Staff', href: '/dashboard/staff', icon: UserCog },
     { name: 'Analytics', href: '/dashboard/analytics', icon: LineChart },
     { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
     { name: 'Settings', href: '/dashboard/settings', icon: User },

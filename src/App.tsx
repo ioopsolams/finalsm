@@ -11,6 +11,8 @@ import MenuItemsPage from './components/MenuItemsPage';
 import LoyaltyConfigPage from './components/LoyaltyConfigPage';
 import BranchManagement from './components/BranchManagement';
 import StaffUI from './components/StaffUI';
+import BranchManagement from './components/BranchManagement';
+import StaffUI from './components/StaffUI';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
