@@ -145,10 +145,43 @@ export interface Database {
           updated_at?: string;
         };
       };
+      branches: {
+        Row: {
+          id: string;
+          restaurant_id: string;
+          name: string;
+          location: string;
+          staff_password: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          restaurant_id: string;
+          name: string;
+          location: string;
+          staff_password: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          restaurant_id?: string;
+          name?: string;
+          location?: string;
+          staff_password?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       transactions: {
         Row: {
           id: string;
           restaurant_id: string;
+          branch_id?: string;
           customer_id: string;
           type: 'purchase' | 'bonus' | 'referral' | 'signup' | 'redemption';
           points: number;
@@ -160,6 +193,7 @@ export interface Database {
         Insert: {
           id?: string;
           restaurant_id: string;
+          branch_id?: string;
           customer_id: string;
           type: 'purchase' | 'bonus' | 'referral' | 'signup' | 'redemption';
           points: number;
@@ -171,6 +205,7 @@ export interface Database {
         Update: {
           id?: string;
           restaurant_id?: string;
+          branch_id?: string;
           customer_id?: string;
           type?: 'purchase' | 'bonus' | 'referral' | 'signup' | 'redemption';
           points?: number;

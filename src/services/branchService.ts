@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 export interface Branch {
   id: string;
   restaurant_id: string;
