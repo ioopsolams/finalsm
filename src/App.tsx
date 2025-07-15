@@ -9,6 +9,8 @@ import RewardsPage from './components/RewardsPage';
 import DebugAuth from './components/DebugAuth';
 import MenuItemsPage from './components/MenuItemsPage';
 import LoyaltyConfigPage from './components/LoyaltyConfigPage';
+import BranchManagement from './components/BranchManagement';
+import StaffUI from './components/StaffUI';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -64,6 +66,11 @@ function App() {
           />
           
           <Route 
+            path="/staff" 
+            element={<StaffUI />}
+          />
+          
+          <Route 
             path="/dashboard" 
             element={
               <ProtectedRoute>
@@ -76,8 +83,8 @@ function App() {
             <Route path="rewards" element={<RewardsPage />} />
             <Route path="menu-items" element={<MenuItemsPage />} />
             <Route path="loyalty-config" element={<LoyaltyConfigPage />} />
+            <Route path="branches" element={<BranchManagement />} />
             <Route path="qr" element={<div className="p-8 text-center text-gray-500">QR Codes page coming soon...</div>} />
-            <Route path="staff" element={<div className="p-8 text-center text-gray-500">Staff page coming soon...</div>} />
             <Route path="analytics" element={<div className="p-8 text-center text-gray-500">Analytics page coming soon...</div>} />
             <Route path="billing" element={<div className="p-8 text-center text-gray-500">Billing page coming soon...</div>} />
             <Route path="settings" element={<div className="p-8 text-center text-gray-500">Settings page coming soon...</div>} />
