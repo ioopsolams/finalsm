@@ -190,16 +190,31 @@ export class CustomerService {
       throw new Error('Restaurant not found');
     }
 
-    // Get customer tier for calculation
+    // Use the loyalty config service to calculate points
+    const { LoyaltyConfigService } = await import('./loyaltyConfigService');
+    const config = await LoyaltyConfigService.getLoyaltyConfig(restaurantId);
+    
+    // Get customer for tier calculation
     const customer = await this.getCustomer(restaurantId, customerId);
     if (!customer) {
       throw new Error('Customer not found');
     }
-
-    // Calculate points using reward engine
-    // Note: Points calculation now handled per menu item
-    // This method is for legacy support only
-    const points = Math.floor((amountSpent || 0) * 0.1); // Fallback: 10 AED = 1 point
+    
+    // Calculate points based on order amount using blanket mode or fallback
+    let points = 0;
+    if (config.blanketMode.enabled && amountSpent) {
+      const result = LoyaltyConfigService.calculatePointsPreview(
+        config,
+        undefined, // No specific menu item
+        amountSpent,
+        customer.current_tier,
+        1
+      );
+      points = result.points;
+    } else if (amountSpent) {
+      // Fallback calculation: 10 AED = 1 point
+      points = Math.floor(amountSpent * 0.1);
+    }
 
     if (points <= 0) {
       return; // No points to award
@@ -208,11 +223,12 @@ export class CustomerService {
     const { error } = await supabase.rpc('process_point_transaction', {
       p_restaurant_id: restaurantId,
       p_customer_id: customerId,
-      p_branch_id: branchId || null,
       p_type: 'purchase',
       p_points: points,
+      p_description: description || `Points earned from ${amountSpent} AED purchase`,
       p_amount_spent: amountSpent,
-      p_description: description || `Points earned from ${amountSpent} AED purchase`
+      p_reward_id: null,
+      p_branch_id: branchId || null
     });
 
     if (error) {

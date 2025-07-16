@@ -208,18 +208,34 @@ const StaffUI: React.FC = () => {
         description = `Items: ${itemDescriptions.join(', ')}`;
       }
 
-      // Add points transaction with branch reference
-      await CustomerService.addPointsTransaction(
+      // Use the process_point_transaction function directly
+      const { error } = await supabase.rpc('process_point_transaction', {
+        p_restaurant_id: restaurant.id,
+        p_customer_id: foundCustomer.id,
+        p_type: 'purchase',
+        p_points: pointsToAssign,
+        p_description: `${description} (${selectedBranch.name})`,
+        p_amount_spent: amountSpent,
+        p_reward_id: null,
+        p_branch_id: selectedBranch.id
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Refresh customer data to get updated points
+      const updatedCustomer = await CustomerService.getCustomer(
         restaurant.id,
-        foundCustomer.id,
-        selectedBranch.id,
-        amountSpent,
-        `${description} (${selectedBranch.name})`
+        foundCustomer.id
       );
+      
+      if (updatedCustomer) {
+        setFoundCustomer(updatedCustomer);
+      }
 
       // Reset form
       setCustomerEmail('');
-      setFoundCustomer(null);
       setOrderAmount('');
       setSelectedMenuItems({});
       setShowConfirmModal(false);
@@ -228,6 +244,10 @@ const StaffUI: React.FC = () => {
       // Show success message
       alert(`Successfully assigned ${pointsToAssign} points to ${foundCustomer.first_name} ${foundCustomer.last_name}!`);
 
+      // Clear customer after success message
+      setTimeout(() => {
+        setFoundCustomer(null);
+      }, 2000);
     } catch (err: any) {
       console.error('Error assigning points:', err);
       setError(err.message || 'Failed to assign points');
