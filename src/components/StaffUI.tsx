@@ -10,6 +10,8 @@ import { CustomerService } from '../services/customerService';
 import { MenuItemService, MenuItem } from '../services/menuItemService';
 import { LoyaltyConfigService } from '../services/loyaltyConfigService';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase'; 
+
 
 interface Customer {
   id: string;
