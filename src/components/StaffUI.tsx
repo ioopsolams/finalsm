@@ -218,8 +218,7 @@ const StaffUI: React.FC = () => {
         p_points: pointsToAssign,
         p_description: `${description} (${selectedBranch.name})`,
         p_amount_spent: amountSpent,
-        p_reward_id: null,
-        p_branch_id: selectedBranch.id
+        p_reward_id: null
       });
 
       if (error) {

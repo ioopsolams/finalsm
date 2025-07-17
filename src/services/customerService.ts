@@ -227,8 +227,7 @@ export class CustomerService {
       p_points: points,
       p_description: description || `Points earned from ${amountSpent} AED purchase`,
       p_amount_spent: amountSpent,
-      p_reward_id: null,
-      p_branch_id: branchId || null
+      p_reward_id: null
     });
 
     if (error) {
