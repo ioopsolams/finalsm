@@ -42,6 +42,13 @@ const StaffUI: React.FC = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [loyaltyConfig, setLoyaltyConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'assign' | 'redeem'>('assign');
+  const [redeemCustomerEmail, setRedeemCustomerEmail] = useState('');
+  const [redeemFoundCustomer, setRedeemFoundCustomer] = useState<Customer | null>(null);
+  const [availableRewards, setAvailableRewards] = useState<any[]>([]);
+  const [selectedReward, setSelectedReward] = useState<any>(null);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [redeemLoading, setRedeemLoading] = useState(false);
 
   const { restaurant } = useAuth();
 
@@ -84,6 +91,17 @@ const StaffUI: React.FC = () => {
       setLoyaltyConfig(config);
     } catch (err: any) {
       console.error('Error fetching loyalty config:', err);
+    }
+  };
+
+  const fetchBranchStatsRefresh = async () => {
+    if (!restaurant || !selectedBranch) return;
+    
+    try {
+      const stats = await BranchService.getBranchStats(restaurant.id, selectedBranch.id);
+      setBranchStats(stats);
+    } catch (err) {
+      console.error('Error refreshing branch stats:', err);
     }
   };
 
@@ -139,6 +157,29 @@ const StaffUI: React.FC = () => {
       setFoundCustomer(customer);
     } catch (err) {
       setFoundCustomer(null);
+    }
+  };
+
+  const handleRedeemCustomerSearch = async (email: string) => {
+    if (!email || !restaurant) {
+      setRedeemFoundCustomer(null);
+      setAvailableRewards([]);
+      return;
+    }
+
+    try {
+      const customer = await CustomerService.getCustomerByEmail(restaurant.id, email);
+      setRedeemFoundCustomer(customer);
+      
+      if (customer) {
+        // Fetch available rewards for this customer
+        const { RewardService } = await import('../services/rewardService');
+        const rewards = await RewardService.getAvailableRewards(restaurant.id, customer.id);
+        setAvailableRewards(rewards);
+      }
+    } catch (err) {
+      setRedeemFoundCustomer(null);
+      setAvailableRewards([]);
     }
   };
 
@@ -218,7 +259,8 @@ const StaffUI: React.FC = () => {
         p_points: pointsToAssign,
         p_description: `${description} (${selectedBranch.name})`,
         p_amount_spent: amountSpent,
-        p_reward_id: null
+        p_reward_id: null,
+        p_branch_id: selectedBranch.id
       });
 
       if (error) {
@@ -248,12 +290,61 @@ const StaffUI: React.FC = () => {
       // Clear customer after success message
       setTimeout(() => {
         setFoundCustomer(null);
+        fetchBranchStatsRefresh(); // Refresh branch stats
       }, 2000);
     } catch (err: any) {
       console.error('Error assigning points:', err);
       setError(err.message || 'Failed to assign points');
     } finally {
       setAssignmentLoading(false);
+    }
+  };
+
+  const handleRedeemReward = async () => {
+    if (!redeemFoundCustomer || !selectedReward || !restaurant || !selectedBranch) return;
+
+    try {
+      setRedeemLoading(true);
+      
+      // Import RewardService
+      const { RewardService } = await import('../services/rewardService');
+      
+      // Process the redemption
+      await RewardService.redeemReward(restaurant.id, redeemFoundCustomer.id, selectedReward.id);
+      
+      // Refresh customer data
+      const updatedCustomer = await CustomerService.getCustomer(
+        restaurant.id,
+        redeemFoundCustomer.id
+      );
+      
+      if (updatedCustomer) {
+        setRedeemFoundCustomer(updatedCustomer);
+        // Refresh available rewards
+        const rewards = await RewardService.getAvailableRewards(restaurant.id, updatedCustomer.id);
+        setAvailableRewards(rewards);
+      }
+
+      // Reset form
+      setRedeemCustomerEmail('');
+      setSelectedReward(null);
+      setShowRedeemModal(false);
+      setError('');
+      
+      // Show success message
+      alert(`Successfully redeemed ${selectedReward.name} for ${redeemFoundCustomer.first_name} ${redeemFoundCustomer.last_name}!`);
+
+      // Clear customer after success message
+      setTimeout(() => {
+        setRedeemFoundCustomer(null);
+        setAvailableRewards([]);
+        fetchBranchStatsRefresh(); // Refresh branch stats
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error redeeming reward:', err);
+      setError(err.message || 'Failed to redeem reward');
+    } finally {
+      setRedeemLoading(false);
     }
   };
 
@@ -458,7 +549,7 @@ const StaffUI: React.FC = () => {
                   <Users className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Customers</p>
+                  <p className="text-sm text-gray-600">Customers Today</p>
                   <p className="text-xl font-bold text-gray-900">{branchStats.totalCustomers}</p>
                 </div>
               </div>
@@ -470,7 +561,7 @@ const StaffUI: React.FC = () => {
                   <Gift className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Redemptions</p>
+                  <p className="text-sm text-gray-600">Redemptions Today</p>
                   <p className="text-xl font-bold text-gray-900">{branchStats.totalRedemptions}</p>
                 </div>
               </div>
@@ -482,7 +573,7 @@ const StaffUI: React.FC = () => {
                   <TrendingUp className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Points Issued</p>
+                  <p className="text-sm text-gray-600">Points Issued Today</p>
                   <p className="text-xl font-bold text-gray-900">{branchStats.totalPointsIssued.toLocaleString()}</p>
                 </div>
               </div>
@@ -494,7 +585,7 @@ const StaffUI: React.FC = () => {
                   <DollarSign className="h-5 w-5 text-yellow-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Revenue</p>
+                  <p className="text-sm text-gray-600">Revenue Today</p>
                   <p className="text-xl font-bold text-gray-900">{branchStats.totalRevenue.toFixed(0)} AED</p>
                 </div>
               </div>
@@ -502,170 +593,313 @@ const StaffUI: React.FC = () => {
           </div>
         )}
 
-        {/* Point Assignment Section */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Assign Points to Customer</h2>
-
-          {/* Assignment Mode Toggle */}
-          <div className="flex gap-2 mb-6">
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="flex border-b border-gray-200">
             <button
-              onClick={() => setAssignmentMode('qr')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all ${
-                assignmentMode === 'qr'
+              onClick={() => setActiveTab('assign')}
+              className={`flex-1 py-4 px-6 font-medium transition-colors ${
+                activeTab === 'assign'
                   ? 'bg-[#1E2A78] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
               }`}
             >
-              <QrCode className="h-4 w-4" />
-              Order Amount
+              Assign Points
             </button>
             <button
-              onClick={() => setAssignmentMode('menu')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all ${
-                assignmentMode === 'menu'
+              onClick={() => setActiveTab('redeem')}
+              className={`flex-1 py-4 px-6 font-medium transition-colors ${
+                activeTab === 'redeem'
                   ? 'bg-[#1E2A78] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
               }`}
             >
-              <Utensils className="h-4 w-4" />
-              Menu Items
+              Redeem Rewards
             </button>
           </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4">
-              {error}
-            </div>
-          )}
+          {/* Point Assignment Tab */}
+          {activeTab === 'assign' && (
+            <div className="p-6">
+              {/* Assignment Mode Toggle */}
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => setAssignmentMode('qr')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all ${
+                    assignmentMode === 'qr'
+                      ? 'bg-[#1E2A78] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <QrCode className="h-4 w-4" />
+                  Order Amount
+                </button>
+                <button
+                  onClick={() => setAssignmentMode('menu')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all ${
+                    assignmentMode === 'menu'
+                      ? 'bg-[#1E2A78] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Utensils className="h-4 w-4" />
+                  Menu Items
+                </button>
+              </div>
 
-          {/* Customer Search */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Customer Email
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="email"
-                value={customerEmail}
-                onChange={(e) => {
-                  setCustomerEmail(e.target.value);
-                  handleCustomerSearch(e.target.value);
-                }}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1E2A78] focus:border-transparent"
-                placeholder="Enter customer email"
-              />
-            </div>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4">
+                  {error}
+                </div>
+              )}
 
-            {foundCustomer && (
-              <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-[#1E2A78] to-[#3B4B9A] rounded-full flex items-center justify-center text-white font-medium">
-                    {foundCustomer.first_name[0]}{foundCustomer.last_name[0]}
-                  </div>
-                  <div>
-                    <p className="font-medium text-green-900">
-                      {foundCustomer.first_name} {foundCustomer.last_name}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const tierInfo = getTierInfo(foundCustomer.current_tier);
-                        const TierIcon = tierInfo.icon;
-                        return (
-                          <>
-                            <TierIcon className={`h-4 w-4 ${tierInfo.color}`} />
-                            <span className="text-sm text-green-700">
-                              {tierInfo.name} • {foundCustomer.total_points} points
-                            </span>
-                          </>
-                        );
-                      })()}
+              {/* Customer Search */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Customer Email
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => {
+                      setCustomerEmail(e.target.value);
+                      handleCustomerSearch(e.target.value);
+                    }}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1E2A78] focus:border-transparent"
+                    placeholder="Enter customer email"
+                  />
+                </div>
+
+                {foundCustomer && (
+                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-[#1E2A78] to-[#3B4B9A] rounded-full flex items-center justify-center text-white font-medium">
+                        {foundCustomer.first_name[0]}{foundCustomer.last_name[0]}
+                      </div>
+                      <div>
+                        <p className="font-medium text-green-900">
+                          {foundCustomer.first_name} {foundCustomer.last_name}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const tierInfo = getTierInfo(foundCustomer.current_tier);
+                            const TierIcon = tierInfo.icon;
+                            return (
+                              <>
+                                <TierIcon className={`h-4 w-4 ${tierInfo.color}`} />
+                                <span className="text-sm text-green-700">
+                                  {tierInfo.name} • {foundCustomer.total_points} points
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Order Amount Mode */}
+              {assignmentMode === 'qr' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Order Amount (AED)
+                    </label>
+                    <input
+                      type="number"
+                      value={orderAmount}
+                      onChange={(e) => setOrderAmount(e.target.value)}
+                      className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1E2A78] focus:border-transparent"
+                      placeholder="Enter total order amount"
+                      min="0"
+                      step="0.01"
+                    />
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* Order Amount Mode */}
-          {assignmentMode === 'qr' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Order Amount (AED)
-                </label>
-                <input
-                  type="number"
-                  value={orderAmount}
-                  onChange={(e) => setOrderAmount(e.target.value)}
-                  className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1E2A78] focus:border-transparent"
-                  placeholder="Enter total order amount"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
+              {/* Menu Items Mode */}
+              {assignmentMode === 'menu' && (
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900">Select Menu Items</h3>
+                  <div className="max-h-64 overflow-y-auto space-y-2">
+                    {menuItems.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{item.name}</p>
+                          <p className="text-sm text-gray-600">{item.selling_price} AED</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedMenuItems(prev => ({
+                              ...prev,
+                              [item.id]: Math.max(0, (prev[item.id] || 0) - 1)
+                            }))}
+                            className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-300 transition-colors"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <span className="w-8 text-center font-medium">
+                            {selectedMenuItems[item.id] || 0}
+                          </span>
+                          <button
+                            onClick={() => setSelectedMenuItems(prev => ({
+                              ...prev,
+                              [item.id]: (prev[item.id] || 0) + 1
+                            }))}
+                            className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-300 transition-colors"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Points Preview */}
+              {foundCustomer && (
+                <div className="mt-6 p-4 bg-gradient-to-r from-[#1E2A78] to-[#3B4B9A] rounded-xl text-white">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold">{calculatePointsForOrder()}</p>
+                    <p className="text-sm opacity-90">points will be assigned</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Assign Button */}
+              <button
+                onClick={() => setShowConfirmModal(true)}
+                disabled={!foundCustomer || calculatePointsForOrder() <= 0}
+                className="w-full mt-6 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Zap className="h-4 w-4" />
+                Assign Points
+              </button>
             </div>
           )}
 
-          {/* Menu Items Mode */}
-          {assignmentMode === 'menu' && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-gray-900">Select Menu Items</h3>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {menuItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{item.name}</p>
-                      <p className="text-sm text-gray-600">{item.selling_price} AED</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedMenuItems(prev => ({
-                          ...prev,
-                          [item.id]: Math.max(0, (prev[item.id] || 0) - 1)
-                        }))}
-                        className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-300 transition-colors"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-8 text-center font-medium">
-                        {selectedMenuItems[item.id] || 0}
-                      </span>
-                      <button
-                        onClick={() => setSelectedMenuItems(prev => ({
-                          ...prev,
-                          [item.id]: (prev[item.id] || 0) + 1
-                        }))}
-                        className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-300 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
+          {/* Reward Redemption Tab */}
+          {activeTab === 'redeem' && (
+            <div className="p-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4">
+                  {error}
+                </div>
+              )}
+
+              {/* Customer Search for Redemption */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Customer Email
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={redeemCustomerEmail}
+                    onChange={(e) => {
+                      setRedeemCustomerEmail(e.target.value);
+                      handleRedeemCustomerSearch(e.target.value);
+                    }}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1E2A78] focus:border-transparent"
+                    placeholder="Enter customer email to redeem rewards"
+                  />
+                </div>
+
+                {redeemFoundCustomer && (
+                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-[#1E2A78] to-[#3B4B9A] rounded-full flex items-center justify-center text-white font-medium">
+                        {redeemFoundCustomer.first_name[0]}{redeemFoundCustomer.last_name[0]}
+                      </div>
+                      <div>
+                        <p className="font-medium text-green-900">
+                          {redeemFoundCustomer.first_name} {redeemFoundCustomer.last_name}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const tierInfo = getTierInfo(redeemFoundCustomer.current_tier);
+                            const TierIcon = tierInfo.icon;
+                            return (
+                              <>
+                                <TierIcon className={`h-4 w-4 ${tierInfo.color}`} />
+                                <span className="text-sm text-green-700">
+                                  {tierInfo.name} • {redeemFoundCustomer.total_points} points
+                                </span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
+
+              {/* Available Rewards */}
+              {redeemFoundCustomer && (
+                <div className="space-y-4">
+                  <h3 className="font-medium text-gray-900">Available Rewards</h3>
+                  {availableRewards.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl">
+                      <Gift className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-gray-500">No rewards available for this customer</p>
+                      <p className="text-sm text-gray-400">Customer may need more points or higher tier</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {availableRewards.map((reward) => (
+                        <div
+                          key={reward.id}
+                          className={`p-4 border rounded-xl cursor-pointer transition-all ${
+                            selectedReward?.id === reward.id
+                              ? 'border-[#1E2A78] bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setSelectedReward(reward)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-900">{reward.name}</h4>
+                              <p className="text-sm text-gray-600">{reward.description}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-sm font-medium text-[#1E2A78]">
+                                  {reward.points_required} points
+                                </span>
+                                <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                                  {reward.category}
+                                </span>
+                              </div>
+                            </div>
+                            {selectedReward?.id === reward.id && (
+                              <CheckCircle className="h-5 w-5 text-[#1E2A78]" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Redeem Button */}
+                  {selectedReward && (
+                    <button
+                      onClick={() => setShowRedeemModal(true)}
+                      className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-medium py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <Gift className="h-4 w-4" />
+                      Redeem {selectedReward.name}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
-
-          {/* Points Preview */}
-          {foundCustomer && (
-            <div className="mt-6 p-4 bg-gradient-to-r from-[#1E2A78] to-[#3B4B9A] rounded-xl text-white">
-              <div className="text-center">
-                <p className="text-3xl font-bold">{calculatePointsForOrder()}</p>
-                <p className="text-sm opacity-90">points will be assigned</p>
-              </div>
-            </div>
-          )}
-
-          {/* Assign Button */}
-          <button
-            onClick={() => setShowConfirmModal(true)}
-            disabled={!foundCustomer || calculatePointsForOrder() <= 0}
-            className="w-full mt-6 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <Zap className="h-4 w-4" />
-            Assign Points
-          </button>
         </div>
       </div>
 
@@ -746,6 +980,84 @@ const StaffUI: React.FC = () => {
                   <>
                     <CheckCircle className="h-4 w-4" />
                     Confirm Assignment
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redemption Confirmation Modal */}
+      {showRedeemModal && redeemFoundCustomer && selectedReward && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gray-900">Confirm Reward Redemption</h3>
+              <button
+                onClick={() => setShowRedeemModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Customer Info */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#1E2A78] to-[#3B4B9A] rounded-full flex items-center justify-center text-white font-medium">
+                    {redeemFoundCustomer.first_name[0]}{redeemFoundCustomer.last_name[0]}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {redeemFoundCustomer.first_name} {redeemFoundCustomer.last_name}
+                    </p>
+                    <p className="text-sm text-gray-600">{redeemFoundCustomer.email}</p>
+                    <p className="text-sm text-gray-600">
+                      Current Points: {redeemFoundCustomer.total_points}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reward Details */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                <h4 className="font-medium text-green-900 mb-2">Reward to Redeem</h4>
+                <p className="font-semibold text-green-800">{selectedReward.name}</p>
+                <p className="text-sm text-green-700">{selectedReward.description}</p>
+                <p className="text-sm font-medium text-green-800 mt-2">
+                  Cost: {selectedReward.points_required} points
+                </p>
+              </div>
+
+              {/* Points After Redemption */}
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <p className="text-sm text-blue-700">Points after redemption:</p>
+                <p className="text-xl font-bold text-blue-900">
+                  {redeemFoundCustomer.total_points - selectedReward.points_required} points
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowRedeemModal(false)}
+                className="flex-1 py-3 px-4 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRedeemReward}
+                disabled={redeemLoading}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {redeemLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    Confirm Redemption
                   </>
                 )}
               </button>
