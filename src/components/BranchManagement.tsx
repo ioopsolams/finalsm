@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const BranchManagement: React.FC = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [allTimeStats, setAllTimeStats] = useState<Record<string, BranchStats>>({});
   const [branchStats, setBranchStats] = useState<Record<string, BranchStats>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,16 +46,22 @@ const BranchManagement: React.FC = () => {
       
       // Fetch stats for each branch
       const statsPromises = branchesData.map(async (branch) => {
-        const stats = await BranchService.getBranchStats(restaurant.id, branch.id);
-        return { branchId: branch.id, stats };
+        const [dailyStats, allTimeStatsData] = await Promise.all([
+          BranchService.getBranchStats(restaurant.id, branch.id),
+          BranchService.getAllTimeBranchStats(restaurant.id, branch.id)
+        ]);
+        return { branchId: branch.id, dailyStats, allTimeStats: allTimeStatsData };
       });
       
       const statsResults = await Promise.all(statsPromises);
-      const statsMap: Record<string, BranchStats> = {};
-      statsResults.forEach(({ branchId, stats }) => {
-        statsMap[branchId] = stats;
+      const dailyStatsMap: Record<string, BranchStats> = {};
+      const allTimeStatsMap: Record<string, BranchStats> = {};
+      statsResults.forEach(({ branchId, dailyStats, allTimeStats }) => {
+        dailyStatsMap[branchId] = dailyStats;
+        allTimeStatsMap[branchId] = allTimeStats;
       });
-      setBranchStats(statsMap);
+      setBranchStats(dailyStatsMap);
+      setAllTimeStats(allTimeStatsMap);
       
     } catch (err: any) {
       console.error('Error fetching branches:', err);
@@ -286,7 +293,15 @@ const BranchManagement: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredBranches.map((branch) => {
-            const stats = branchStats[branch.id] || {
+            const dailyStats = branchStats[branch.id] || {
+              totalCustomers: 0,
+              totalRedemptions: 0,
+              totalPointsIssued: 0,
+              totalRevenue: 0,
+              recentTransactions: []
+            };
+            
+            const allTimeStatsData = allTimeStats[branch.id] || {
               totalCustomers: 0,
               totalRedemptions: 0,
               totalPointsIssued: 0,
@@ -323,14 +338,54 @@ const BranchManagement: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Branch Stats */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  {/* Today's Stats */}
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Today's Performance</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-blue-50 rounded-lg p-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Users className="h-3 w-3 text-blue-600" />
+                          <span className="text-xs text-blue-600">Customers</span>
+                        </div>
+                        <p className="text-sm font-bold text-blue-900">{dailyStats.totalCustomers}</p>
+                      </div>
+                      
+                      <div className="bg-green-50 rounded-lg p-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          <span className="text-xs text-green-600">Points</span>
+                        </div>
+                        <p className="text-sm font-bold text-green-900">{dailyStats.totalPointsIssued}</p>
+                      </div>
+                      
+                      <div className="bg-purple-50 rounded-lg p-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Gift className="h-3 w-3 text-purple-600" />
+                          <span className="text-xs text-purple-600">Redemptions</span>
+                        </div>
+                        <p className="text-sm font-bold text-purple-900">{dailyStats.totalRedemptions}</p>
+                      </div>
+                      
+                      <div className="bg-yellow-50 rounded-lg p-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <DollarSign className="h-3 w-3 text-yellow-600" />
+                          <span className="text-xs text-yellow-600">Revenue</span>
+                        </div>
+                        <p className="text-sm font-bold text-yellow-900">{dailyStats.totalRevenue.toFixed(0)} AED</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* All-Time Stats */}
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">All-Time Performance</h4>
+                    <div className="grid grid-cols-2 gap-2">
                     <div className="bg-gray-50 rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Users className="h-4 w-4 text-blue-600" />
                         <span className="text-xs text-gray-600">Customers</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{stats.totalCustomers}</p>
+                      <p className="text-lg font-bold text-gray-900">{allTimeStatsData.totalCustomers}</p>
                     </div>
                     
                     <div className="bg-gray-50 rounded-lg p-3">
@@ -338,7 +393,7 @@ const BranchManagement: React.FC = () => {
                         <Gift className="h-4 w-4 text-green-600" />
                         <span className="text-xs text-gray-600">Redemptions</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{stats.totalRedemptions}</p>
+                      <p className="text-lg font-bold text-gray-900">{allTimeStatsData.totalRedemptions}</p>
                     </div>
                     
                     <div className="bg-gray-50 rounded-lg p-3">
@@ -346,7 +401,7 @@ const BranchManagement: React.FC = () => {
                         <TrendingUp className="h-4 w-4 text-purple-600" />
                         <span className="text-xs text-gray-600">Points</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{stats.totalPointsIssued.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-gray-900">{allTimeStatsData.totalPointsIssued.toLocaleString()}</p>
                     </div>
                     
                     <div className="bg-gray-50 rounded-lg p-3">
@@ -354,8 +409,9 @@ const BranchManagement: React.FC = () => {
                         <DollarSign className="h-4 w-4 text-yellow-600" />
                         <span className="text-xs text-gray-600">Revenue</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{stats.totalRevenue.toFixed(0)} AED</p>
+                      <p className="text-lg font-bold text-gray-900">{allTimeStatsData.totalRevenue.toFixed(0)} AED</p>
                     </div>
+                  </div>
                   </div>
 
                   {/* Status */}
