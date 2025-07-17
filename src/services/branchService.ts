@@ -147,7 +147,13 @@ export class BranchService {
         };
       }
 
-      // Get branch-specific transactions
+      // Get today's date for daily stats
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+
+      // Get branch-specific transactions for today
       const { data: transactions, error: transError } = await supabase
         .from('transactions')
         .select(`
@@ -156,11 +162,13 @@ export class BranchService {
         `)
         .eq('restaurant_id', restaurantId)
         .eq('branch_id', branchId)
+        .gte('created_at', startOfDay.toISOString())
+        .lt('created_at', endOfDay.toISOString())
         .order('created_at', { ascending: false });
 
       if (transError) throw transError;
 
-      // Get branch-specific customers (those who have transactions at this branch)
+      // Get unique customers who had transactions today at this branch
       const uniqueCustomerIds = [...new Set(transactions?.map(t => t.customer_id) || [])];
       
       const totalCustomers = uniqueCustomerIds.length;
@@ -188,6 +196,58 @@ export class BranchService {
     }
   }
 
+  static async getAllTimeBranchStats(restaurantId: string, branchId: string): Promise<BranchStats> {
+    try {
+      if (!restaurantId || !branchId) {
+        return {
+          totalCustomers: 0,
+          totalRedemptions: 0,
+          totalPointsIssued: 0,
+          totalRevenue: 0,
+          recentTransactions: []
+        };
+      }
+
+      // Get all-time branch-specific transactions
+      const { data: transactions, error: transError } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          customer:customers(first_name, last_name, email)
+        `)
+        .eq('restaurant_id', restaurantId)
+        .eq('branch_id', branchId)
+        .order('created_at', { ascending: false });
+
+      if (transError) throw transError;
+
+      // Get unique customers who have ever had transactions at this branch
+      const uniqueCustomerIds = [...new Set(transactions?.map(t => t.customer_id) || [])];
+      
+      const totalCustomers = uniqueCustomerIds.length;
+      const totalRedemptions = transactions?.filter(t => t.type === 'redemption').length || 0;
+      const totalPointsIssued = transactions?.filter(t => t.points > 0).reduce((sum, t) => sum + t.points, 0) || 0;
+      const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount_spent || 0), 0) || 0;
+      const recentTransactions = transactions?.slice(0, 10) || [];
+
+      return {
+        totalCustomers,
+        totalRedemptions,
+        totalPointsIssued,
+        totalRevenue,
+        recentTransactions
+      };
+    } catch (error: any) {
+      console.error('Error in getAllTimeBranchStats:', error);
+      return {
+        totalCustomers: 0,
+        totalRedemptions: 0,
+        totalPointsIssued: 0,
+        totalRevenue: 0,
+        recentTransactions: []
+      };
+    }
+  }
   static async verifyBranchPassword(
     restaurantId: string, 
     branchId: string, 
